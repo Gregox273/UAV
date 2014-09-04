@@ -1,10 +1,10 @@
-Gregory Brooks' UAV project repo
+Gregory Brooks' UAV project repository
 
 The aim of this project is to create a UAV using the APM 2.6, raspberry pi computer and Pi Noir infrared camera module.
 
 Project website can be found at http://arkwrightuavproject.wordpress.com
 
-Utilises pymavlink module: 
+Utilises pymavlink generator and module: 
 http://www.qgroundcontrol.org/doku.php?id=mavlink:pymavlink
 
 apm.py based on Dr G Owen's ardupilot sdk:
