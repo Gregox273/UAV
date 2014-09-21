@@ -1,7 +1,7 @@
 #UAV Camera System Code
 #Created 22/8/2014
 #Gregory Brooks
-import apm, serial, time
+import apm, serial, time, photos
 #import sys, os?
 
 
@@ -12,6 +12,10 @@ verbose = True
 
 ap=apm.ArduPilot(serport,baud, verbose)#instance of ArduPilot class
 
-
+#while 1:
 #	loc = ap.getLocation()
-
+#	print loc
+#	time.sleep(1)
+for x in range (0,10):
+	cam = photos.camera(ap)
+	cam.take()
