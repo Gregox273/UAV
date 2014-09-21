@@ -1,8 +1,8 @@
 #UAV Camera System Code
 #Created 22/8/2014
 #Gregory Brooks
-#v0.3: Take photos every x metres
-import sys, os, apm, serial, time
+import apm, serial, time
+#import sys, os?
 
 
 #Ardupilot class settings
