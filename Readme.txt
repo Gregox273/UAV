@@ -9,3 +9,6 @@ http://www.qgroundcontrol.org/doku.php?id=mavlink:pymavlink
 
 apm.py based on Dr G Owen's ardupilot sdk:
 https://github.com/drgowen/ardupilot-sdk-python.git
+
+
+For photo stitching/KML overlay creation and viewing, a computer running Debian/Ubuntu with Hugin photo stitching software installed is required.

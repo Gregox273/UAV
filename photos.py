@@ -2,7 +2,7 @@
 #Created 30/08/2014
 #Gregory Brooks
 import subprocess, apm, thread, math
-
+from decimal import *
 
 
 
@@ -52,10 +52,14 @@ class camera:
 			
 	 
   	def ddtodms(self, dd):
+		dd = Decimal(str(dd))
 		coords = {'deg': 0, 'min' : 0, 'sec' : 0}
-		coords['deg'] = math.trunc(dd)
-		coords['min'] = math.trunc(60*(dd - coords['deg']))
-		coords['sec'] = math.trunc(3600*(dd - coords['deg'] - coords['min']/60))
+		coords['deg'] = int(dd)
+		coords['min'] = int(60*(dd - coords['deg']))
+		dp = Decimal('0.001') #3dp
+		coords['sec'] = str(Decimal(3600*(dd - coords['deg'] - Decimal(coords['min'])/(60))).quantize(dp))
+		coords['deg'] = str(coords['deg'])#standard string output
+		coords['min'] = str(coords['min'])
 		return coords
 
 #use threads for ndvi conversion (so the program doesn't slow down)
