@@ -19,8 +19,13 @@ class camera:
                 exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
                 settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'ndvi directory' : '/root/ndvi'}
                 R = 6371000 #radius of earth/m
-                hAngle = 54#angle of view/degrees
-                vAngle = 41
+                #Vectors to show the direction of each corner of the photo from the camera
+                #right-handed, Z-down, X-front, Y-right
+                #vector format (0,x,y,z) in metres (0 is used for Hamilton product)
+                topleft = [math.tan(20.5), 0 - math.tan(27),1]
+                topright = [math.tan(20.5),math.tan(27),1]
+                bottomright = [0 - math.tan(20.5),math.tan(27),1]
+                bottomleft = [0 - math.tan(20.5),0 - math.tan(27),1]
 
         def take(self):
                 print "taking photo"
@@ -29,11 +34,11 @@ class camera:
                 att = self.ap.getAttitude()
                 alt = self.ap.getAltitude()
                 bear = self.ap.getHeading()
-                if self.exif['on/off'] == True:
+                if self.exif['on/off'] == True:#if save exif data option enabled
                         if self.exif['location'] == True:
                                 print loc
                                 lat = self.ddtodms(loc['lat'])
-                                lon = self.ddtodms(loc['lon'])
+                                lon = self.ddtodms(loc['lon'])#save lat/lon with photo
                                 command = command + "-x GPS.GPSLatitude=" + str(lat['deg']) + "/1," + str(lat['min']) + "/1," + str(lat['sec']) + "/100 "
                                 command = command + "-x GPS.GPSLongitude=" + str(lon['deg']) + "/1," + str(lon['min']) + "/1," + str(lon['sec']) + "/100 "
 #Do these later------------------------------------------------------
@@ -48,7 +53,7 @@ class camera:
 #--------------------------------------------------------------------
                 name = "x"
                 if self.settings['name format'] == 0:
-                        name = str(loc['lat']) + "_" + str(loc['lon'])
+                        name = str(loc['lat']) + "_" + str(loc['lon'])#name as lat lon
                 command = command + "-o " + self.settings['photo directory'] + name + ".jpg"                             
                 print "calling:" +  command
                 subprocess.call(command,shell=True)
@@ -72,60 +77,64 @@ class camera:
 
                 return coords
 
-        def getcorners(loc, bear, att, alt, hAngle, vAngle):
-                lat = degtorad(loc['lat'])
-                lon = degtorad(loc['lon'])
-                hdg = degtorad(bear)
-                hAngle = degtorad(hAngle)
-                vAngle = degtorad(vAngle)
-            
-                #distances from vertically under camera to each edge of the photo
-                tr = {'lat': 0, 'lon': 0, 'dist': 0, 'theta':0}
-                br = {'lat': 0, 'lon': 0, 'dist': 0, 'theta': 0}
-                bl = {'lat': 0, 'lon': 0, 'dist': 0, 'theta': 0}
-                tl = {'lat': 0, 'lon': 0, 'dist': 0, 'theta': 0}
-                corners = [tr,br,bl,tl]
-                corners = vector(att['pitch'], att['roll'], hAngle, vAngle, alt, hdg, corners)
-                    
-                for x in range (0,3):
-                        dest = corners(loc['lat'], loc['lon'], corners[x]['theta'],Decimal(corners[x]['distance'])/R)
-                        corners[x]['lat'] = dest['lat']
-                        corners[x]['lon'] = dest['lon']
-    
-    
-    
-        def degtorad(angle):
-                return (Decimal(angle*math.pi)/180)
 
-        def vector(pitch,roll,hAngle,vAngle,alt,hdg, corners):
-                #returns each corner of the photo as a vector (magnitude and direction) in the ground plane
-                #(from the 2D coordinates of the aircraft
-                hAngle = Decimal(hAngle)/2
-                vAngle = Decimal(vAngle)/2
-                disp = {'tr' : 0, 'br' : 0, 'bl': 0, 'tl': 0}
+        def Eul2quat(self, y,p,r):
+                #convert extrinsic Eulerian angles (in yaw, pitch, roll order) to quaternion
+                #http://www.euclideanspace.com/maths/geometry/rotations/conversions/eulerToQuaternion/
+                c1 = math.cos(y/2)
+                c2 = math.cos(p/2)
+                c3 = math.cos(r/2)
+                s1 = math.sin(y/2)
+                s2 = math.sin(p/2)
+                s3 = math.sin(r/2)
+
+                #rotations as quaternions
+                yaw = [c1,0,0,s1]
+                pitch = [c2,0,s2,0]
+                roll = [c3, s3,0,0]
+                #resultant quat
+                quat = H(H(roll,pitch),yaw)
                 
-                fwd = alt * Decimal(math.tan(vAngle + pitch))
-                bwd = alt * Decimal(math.tan(vAngle - pitch))
-                left= alt * Decimal(math.tan(hAngle + roll))
-                right=alt * Decimal(math.tan(hAngle - roll))
+                return quat
 
-                corners[0]['dist'] = Decimal(fwd^2+right^2).sqrt()
-                corners[1]['dist'] = Decimal(bwd^2+right^2).sqrt()
-                corners[2]['dist'] = Decimal(bwd^2+left^2).sqrt()
-                corners[3]['dist'] = Decimal(fwd^2+left^2).sqrt()
 
-                corners[0]['theta'] = Decimal(hdg+math.atan(Decimal(right)/fwd))
-                corners[1]['theta'] = Decimal(hdg+math.pi-math.atan(Decimal(right)/bwd))
-                corners[2]['theta'] = Decimal(hdg+math.pi+math.atan(Decimal(left)/bwd))
-                corners[4]['theta'] = Decimal(hdg-math.atan(Decimal(left)/fwd))
-                return corners
-    
-        def corners(p,l,t,d):
+
+                
+        def H(self, a, b):
+                #a and b have four elements
+                #http://math.stackexchange.com/questions/40164/how-do-you-rotate-a-vector-by-a-unit-quaternion
+                #http://en.wikipedia.org/wiki/Quaternion#Hamilton_product
+                
+                w = a[0]
+                x = a[1]
+                y = a[2]
+                z = a[3]
+                p0 = b[0]
+                p1 = b[1]
+                p2 = b[2]
+                p3 = b[3]
+
+                row1 = w*p0 - x*p1 - y*p2 - z*p3
+                row2 = w*p1 + x*p0 + y*p3 - z*p2
+                row3 = w*p2 - x*p3 + y*p0 + z*p1
+                row4 = w*p3 + x*p2 - y*p1 + z*p0
+
+                ans = [row1, row2, row3, row4]
+                return ans
+
+        def rotate(self, v, R):
+                #v is start vector, R is quaternion to apply
+                P = [0,v[0],v[1],v[2]] #quaternion version of vector
+                R1 = [R[0],0-R[1],0-R[2],0-R[3]]
+                ans = H(H(R,P),R1)
+                ans2 = [ans[1],ans[2],ans[3]]#convert back to vector
+                return ans2
+
+         def corners(p,l,t,d):
                 #based on formula from http://www.movable-type.co.uk/scripts/latlong.html
                 dest = {'lat': 0, 'lon': 0}
                 dest['lat'] = Decimal(math.asin(math.sin(p)*math.cos(d)+math.cos(p)*math.sin(d)*math.cos(t)))
                 dest['lon'] = Decimal(l +math.atan2(math.sin(t)*math.sin(d)*math.cos(p),cos(d)-math.sin(p)*math.sin(dest['lat'])))
                 return dest
-
-
-
+       
+                

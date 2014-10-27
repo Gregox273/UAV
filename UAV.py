@@ -16,6 +16,13 @@ ap=apm.ArduPilot(serport,baud, verbose)#instance of ArduPilot class
 #	loc = ap.getLocation()
 #	print loc
 #	time.sleep(1)
+cam = photos.camera(ap)
 for x in range (0,10):
-	cam = photos.camera(ap)
-	cam.take()
+	time.sleep(1)
+	loc, att, bear = cam.take()
+	print loc
+	print att
+	print bear
+	print ""
+	print"-----------------"
+	print ""
