@@ -1,8 +1,11 @@
 #Photos module for using the raspberry pi camera board in a UAV
 #Created 30/08/2014
 #Gregory Brooks
-import subprocess, apm, thread, math
+from __future__ import division
+import subprocess, apm, thread, math, cv2
+import numpy as np
 from decimal import *
+
 
 
 
@@ -17,7 +20,7 @@ class camera:
                 namemodes = {'location' : 0, 'localtime' : 1, 'gpstime' : 2}
                 ndvi = {'overwrite' : 0, 'copy' : 1, 'off' : 2}
                 exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
-                settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'ndvi directory' : '/root/ndvi'}
+                settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'dewarped directory' : '/root/dewarped', 'ndvi directory' : '/root/ndvi', }
                 R = 6371000 #radius of earth/m
                 #Vectors to show the direction of each corner of the photo from the camera
                 #right-handed, Z-down, X-front, Y-right
@@ -57,7 +60,7 @@ class camera:
                 command = command + "-o " + self.settings['photo directory'] + name + ".jpg"                             
                 print "calling:" +  command
                 subprocess.call(command,shell=True)
-                return (loc, att, bear) 
+                return (loc, att,alt, bear, name) 
                         
          
         def ddtodms(self, dd):
@@ -77,6 +80,8 @@ class camera:
 
                 return coords
 
+        
+                
 
         def Eul2quat(self, y,p,r):
                 #convert extrinsic Eulerian angles (in yaw, pitch, roll order) to quaternion
@@ -130,11 +135,63 @@ class camera:
                 ans2 = [ans[1],ans[2],ans[3]]#convert back to vector
                 return ans2
 
-         def corners(p,l,t,d):
+        def corners(self,p,l,t,d):
                 #based on formula from http://www.movable-type.co.uk/scripts/latlong.html
                 dest = {'lat': 0, 'lon': 0}
                 dest['lat'] = Decimal(math.asin(math.sin(p)*math.cos(d)+math.cos(p)*math.sin(d)*math.cos(t)))
                 dest['lon'] = Decimal(l +math.atan2(math.sin(t)*math.sin(d)*math.cos(p),cos(d)-math.sin(p)*math.sin(dest['lat'])))
                 return dest
        
+        def getVectors(self, att, alt):
+                #new corner vectors
+                #coordinate system aligned with vehicle heading (x is forward, y right, z down)
+                Vectors = [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]
+                Vectors[0] = rotate(topleft, Eul2quat(att['yaw'],att['pitch'], att['roll']))
+                Vectors[1] = rotate(topright, Eul2quat(att['yaw'],att['pitch'], att['roll'])) 
+                Vectors[2]= rotate(bottomleft, Eul2quat(att['yaw'],att['pitch'], att['roll']))
+                Vectors[3] = rotate(bottomright, Eul2quat(att['yaw'],att['pitch'], att['roll']))
+                
+                for x in range (0,4):#scale corner vectors up to full size
+                        m = alt/Vectors[x][2]
+                        if m<0:
+                                return [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]
+                        for y in range(0,3):
+                                Vectors[x][y] = Vectors[x][y]*m
+                return Vectors
+
+        def Perspective(self, name, Vectors):
+                
+                corners = [[Vectors[0][0],Vectors[0][1]],[Vectors[1][0],Vectors[1][1]],[Vectors[2][0],Vectors[2][1]],[Vectors[3][0],Vectors[3][1]]] #tl,tr,bl,br
+                
+                minx = min(corners[0][0],corners[1][0],corners[2][0],corners[3][0])#minimum x value
+                maxx = max(corners[0][0],corners[1][0],corners[2][0],corners[3][0])
+                miny = min(corners[0][1],corners[1][1],corners[2][1],corners[3][1])
+                maxy = max(corners[0][1],corners[1][1],corners[2][1],corners[3][1])#maximum y value
+               
+                #now translate corners so that (minx, maxy) --> (0,0)
+                for n in range (0,4):
+                        corners[n][0] = corners[n][0] - minx
+                        #opencv coordinate system (top left corner is (0,0), x axis right is positive, y axis down is positive
+                        corners[n][1] = maxy - corners[n][1]
+                
+                img = cv2.imread(settings['photo directory'] + name)
+                dimensions = img.shape
+                if (maxy - miny)/(maxx-minx) > dimensions[0]/dimensions[1]:
+                        m = dimensions[0]/(maxy-miny)
+                        
+                else:
+                        m = dimensions[1]/(maxx-minx)
+                        
+
+                for n in range(0,4):
+                        corners[n][0] = math.trunc(corners[n][0] * m)
+                        corners[n][1] = math.trunc(corners[n][1] * m)
+                src = np.array([[0,0],[dimensions[1],0],[0,dimensions[0]],[dimensions[1],dimensions[0]]],np.float32)
+                dst = np.array([[corners[0][0],corners[0][1]],[corners[1][0],corners[1][1]],[corners[2][0],corners[2][1]],[corners[3][0],corners[3][1]]],np.float32)
+
+                matrix = cv2.getPerspectiveTransform(src,dst)
+                result = cv2.warpPerspective(img,matrix,(dimensions[1],dimensions[0]))
+                cv2.imwrite(settings['dewarped directory'] + name, result)#save warped image
+                
+                        
                 
