@@ -15,12 +15,12 @@ from decimal import *
 class camera:
         def __init__(self,ap):
                 self.ap = ap
-                print "ap imported"
-                quality = "40 " #0 to 100, not linear!      
+                #print "ap imported"
+                quality = "20 " #0 to 100, not linear!      
                 namemodes = {'location' : 0, 'localtime' : 1, 'gpstime' : 2}
                 ndvi = {'overwrite' : 0, 'copy' : 1, 'off' : 2}
                 self.exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
-                self.settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'dewarped directory' : '/root/dewarped/', 'ndvi directory' : '/root/ndvi/', }
+                self.settings = {'quality': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'dewarped directory' : '/root/dewarped/', 'ndvi directory' : '/root/ndvi/', }
                 self.R = 6371000 #radius of earth/m
                 #Vectors to show the direction of each corner of the photo from the camera
                 #right-handed, Z-down, X-front, Y-right
@@ -31,15 +31,15 @@ class camera:
                 self.bottomleft = [0 - math.tan(self.degtorad(20.5)),0 - math.tan(self.degtorad(27)),1]
 
         def take(self):
-                print "taking photo"
-                command =  "raspistill " + "-n " + "-q " + self.quality + "-t " + "50 "
+                #print "taking photo"
+                command =  "raspistill " + "-n " + "-q " + self.settings['quality'] + "-t " + "50 "
                 loc = self.ap.getLocation()
                 att = self.ap.getAttitude()
                 alt = self.ap.getAltitude()
                 bear = self.ap.getHeading()
                 if self.exif['on/off'] == True:#if save exif data option enabled
                         if self.exif['location'] == True:
-                                print 'loc',loc
+                                #print 'loc',loc
                                 lat = self.ddtodms(loc['lat'])
                                 lon = self.ddtodms(loc['lon'])#save lat/lon with photo
                                 command = command + "-x GPS.GPSLatitude=" + str(lat['deg']) + "/1," + str(lat['min']) + "/1," + str(lat['sec']) + "/100 "
@@ -58,7 +58,7 @@ class camera:
                 if self.settings['name format'] == 0:
                         name = str(loc['lat']) + "_" + str(loc['lon'])#name as lat lon
                 command = command + "-o " + self.settings['photo directory'] + name + ".jpg"                             
-                print "calling:" +  command
+                #"calling:" +  command
                 subprocess.call(command,shell=True)
                 return (loc, att,alt, bear, name) 
                         
@@ -150,7 +150,7 @@ class camera:
                 Vectors[1] = self.rotate(self.topright, self.Eul2quat(0,att['pitch'], att['roll'])) 
                 Vectors[2]= self.rotate(self.bottomleft, self.Eul2quat(0,att['pitch'], att['roll']))
                 Vectors[3] = self.rotate(self.bottomright, self.Eul2quat(0,att['pitch'], att['roll']))
-                print "Vectors", Vectors
+                #print "Vectors", Vectors
                 for x in range (0,4):#scale corner vectors up to full size
                         m = alt/Vectors[x][2]
                         
@@ -165,7 +165,7 @@ class camera:
         def Perspective(self, name, Vectors):
                 
                 corners = [[Vectors[0][0],Vectors[0][1]],[Vectors[1][0],Vectors[1][1]],[Vectors[2][0],Vectors[2][1]],[Vectors[3][0],Vectors[3][1]]] #tl,tr,bl,br
-                print "corners",corners
+                #print "corners",corners
                 minx = min(corners[0][1],corners[1][1],corners[2][1],corners[3][1])#minimum x value
                 maxx = max(corners[0][1],corners[1][1],corners[2][1],corners[3][1])
                 miny = min(corners[0][0],corners[1][0],corners[2][0],corners[3][0])
@@ -177,8 +177,12 @@ class camera:
                         #opencv coordinate system (top left corner is (0,0), x axis right is positive, y axis down is positive
                         corners[n][0] = maxy - corners[n][0]
                 
-                img = cv2.imread(self.settings['photo directory'] + name + '.jpg')
-                dimensions = img.shape
+                
+                raw = cv2.imread(self.settings['photo directory'] + name + '.jpg')
+                
+                img = cv2.resize(raw, (1200, 900))
+                
+                dimensions = (900,1200)
                 if (maxy - miny)/(maxx-minx) > dimensions[0]/dimensions[1]:
                         m = dimensions[0]/(maxy-miny)
                         
@@ -191,13 +195,18 @@ class camera:
                         corners[n][1] = math.trunc(corners[n][1] * m)
                 src = np.array([[0,0],[dimensions[1],0],[0,dimensions[0]],[dimensions[1],dimensions[0]]],np.float32)
                 dst = np.array([[corners[0][1],corners[0][0]],[corners[1][1],corners[1][0]],[corners[2][1],corners[2][0]],[corners[3][1],corners[3][0]]],np.float32)
-
+                
                 matrix = cv2.getPerspectiveTransform(src,dst)
                 result = cv2.warpPerspective(img,matrix,(dimensions[1],dimensions[0]))
-                cv2.imwrite(self.settings['dewarped directory'] + name + '.jpg', result)#save warped image
-
+                
+                cv2.imwrite(self.settings['dewarped directory'] + "dwrp_" + name + '.jpg', result)#save warped image
+                
         def degtorad(self, angle):
                 return angle/180 * math.pi
+        def ndvi(self,name):
+                cmd = "infrapix_single -i " +  self.settings['dewarped directory'] + "dwrp_" + name + ".jpg" + " -o " + self.settings['ndvi directory'] + "ndvi_" + name + ".jpg"
+        
+                subprocess.call(cmd,shell=True)
                 
                         
                 
