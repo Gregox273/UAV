@@ -16,19 +16,19 @@ class camera:
         def __init__(self,ap):
                 self.ap = ap
                 print "ap imported"
-                quality = "50 " #0 to 100, not linear!      
+                quality = "40 " #0 to 100, not linear!      
                 namemodes = {'location' : 0, 'localtime' : 1, 'gpstime' : 2}
                 ndvi = {'overwrite' : 0, 'copy' : 1, 'off' : 2}
-                exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
-                settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'dewarped directory' : '/root/dewarped', 'ndvi directory' : '/root/ndvi', }
-                R = 6371000 #radius of earth/m
+                self.exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
+                self.settings = {'resolution': quality, 'name format': namemodes['location'], 'ndvi mode' : ndvi['copy'], 'photo directory' : '/root/photos/', 'dewarped directory' : '/root/dewarped/', 'ndvi directory' : '/root/ndvi/', }
+                self.R = 6371000 #radius of earth/m
                 #Vectors to show the direction of each corner of the photo from the camera
                 #right-handed, Z-down, X-front, Y-right
                 #vector format (0,x,y,z) in metres (0 is used for Hamilton product)
-                topleft = [math.tan(20.5), 0 - math.tan(27),1]
-                topright = [math.tan(20.5),math.tan(27),1]
-                bottomright = [0 - math.tan(20.5),math.tan(27),1]
-                bottomleft = [0 - math.tan(20.5),0 - math.tan(27),1]
+                self.topleft = [math.tan(self.degtorad(20.5)), 0 - math.tan(self.degtorad(27)),1]
+                self.topright = [math.tan(self.degtorad(20.5)),math.tan(self.degtorad(27)),1]
+                self.bottomright = [0 - math.tan(self.degtorad(20.5)),math.tan(self.degtorad(27)),1]
+                self.bottomleft = [0 - math.tan(self.degtorad(20.5)),0 - math.tan(self.degtorad(27)),1]
 
         def take(self):
                 print "taking photo"
@@ -39,7 +39,7 @@ class camera:
                 bear = self.ap.getHeading()
                 if self.exif['on/off'] == True:#if save exif data option enabled
                         if self.exif['location'] == True:
-                                print loc
+                                print 'loc',loc
                                 lat = self.ddtodms(loc['lat'])
                                 lon = self.ddtodms(loc['lon'])#save lat/lon with photo
                                 command = command + "-x GPS.GPSLatitude=" + str(lat['deg']) + "/1," + str(lat['min']) + "/1," + str(lat['sec']) + "/100 "
@@ -98,7 +98,7 @@ class camera:
                 pitch = [c2,0,s2,0]
                 roll = [c3, s3,0,0]
                 #resultant quat
-                quat = H(H(roll,pitch),yaw)
+                quat = self.H(self.H(roll,pitch),yaw)
                 
                 return quat
 
@@ -131,7 +131,7 @@ class camera:
                 #v is start vector, R is quaternion to apply
                 P = [0,v[0],v[1],v[2]] #quaternion version of vector
                 R1 = [R[0],0-R[1],0-R[2],0-R[3]]
-                ans = H(H(R,P),R1)
+                ans = self.H(self.H(R,P),R1)
                 ans2 = [ans[1],ans[2],ans[3]]#convert back to vector
                 return ans2
 
@@ -146,13 +146,16 @@ class camera:
                 #new corner vectors
                 #coordinate system aligned with vehicle heading (x is forward, y right, z down)
                 Vectors = [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]
-                Vectors[0] = rotate(topleft, Eul2quat(att['yaw'],att['pitch'], att['roll']))
-                Vectors[1] = rotate(topright, Eul2quat(att['yaw'],att['pitch'], att['roll'])) 
-                Vectors[2]= rotate(bottomleft, Eul2quat(att['yaw'],att['pitch'], att['roll']))
-                Vectors[3] = rotate(bottomright, Eul2quat(att['yaw'],att['pitch'], att['roll']))
-                
+                Vectors[0] = self.rotate(self.topleft, self.Eul2quat(0,att['pitch'], att['roll']))
+                Vectors[1] = self.rotate(self.topright, self.Eul2quat(0,att['pitch'], att['roll'])) 
+                Vectors[2]= self.rotate(self.bottomleft, self.Eul2quat(0,att['pitch'], att['roll']))
+                Vectors[3] = self.rotate(self.bottomright, self.Eul2quat(0,att['pitch'], att['roll']))
+                print "Vectors", Vectors
                 for x in range (0,4):#scale corner vectors up to full size
                         m = alt/Vectors[x][2]
+                        
+                        
+                        
                         if m<0:
                                 return [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]
                         for y in range(0,3):
@@ -162,19 +165,19 @@ class camera:
         def Perspective(self, name, Vectors):
                 
                 corners = [[Vectors[0][0],Vectors[0][1]],[Vectors[1][0],Vectors[1][1]],[Vectors[2][0],Vectors[2][1]],[Vectors[3][0],Vectors[3][1]]] #tl,tr,bl,br
-                
-                minx = min(corners[0][0],corners[1][0],corners[2][0],corners[3][0])#minimum x value
-                maxx = max(corners[0][0],corners[1][0],corners[2][0],corners[3][0])
-                miny = min(corners[0][1],corners[1][1],corners[2][1],corners[3][1])
-                maxy = max(corners[0][1],corners[1][1],corners[2][1],corners[3][1])#maximum y value
+                print "corners",corners
+                minx = min(corners[0][1],corners[1][1],corners[2][1],corners[3][1])#minimum x value
+                maxx = max(corners[0][1],corners[1][1],corners[2][1],corners[3][1])
+                miny = min(corners[0][0],corners[1][0],corners[2][0],corners[3][0])
+                maxy = max(corners[0][0],corners[1][0],corners[2][0],corners[3][0])#maximum y value
                
                 #now translate corners so that (minx, maxy) --> (0,0)
                 for n in range (0,4):
-                        corners[n][0] = corners[n][0] - minx
+                        corners[n][1] = corners[n][1] - minx
                         #opencv coordinate system (top left corner is (0,0), x axis right is positive, y axis down is positive
-                        corners[n][1] = maxy - corners[n][1]
+                        corners[n][0] = maxy - corners[n][0]
                 
-                img = cv2.imread(settings['photo directory'] + name)
+                img = cv2.imread(self.settings['photo directory'] + name + '.jpg')
                 dimensions = img.shape
                 if (maxy - miny)/(maxx-minx) > dimensions[0]/dimensions[1]:
                         m = dimensions[0]/(maxy-miny)
@@ -187,11 +190,14 @@ class camera:
                         corners[n][0] = math.trunc(corners[n][0] * m)
                         corners[n][1] = math.trunc(corners[n][1] * m)
                 src = np.array([[0,0],[dimensions[1],0],[0,dimensions[0]],[dimensions[1],dimensions[0]]],np.float32)
-                dst = np.array([[corners[0][0],corners[0][1]],[corners[1][0],corners[1][1]],[corners[2][0],corners[2][1]],[corners[3][0],corners[3][1]]],np.float32)
+                dst = np.array([[corners[0][1],corners[0][0]],[corners[1][1],corners[1][0]],[corners[2][1],corners[2][0]],[corners[3][1],corners[3][0]]],np.float32)
 
                 matrix = cv2.getPerspectiveTransform(src,dst)
                 result = cv2.warpPerspective(img,matrix,(dimensions[1],dimensions[0]))
-                cv2.imwrite(settings['dewarped directory'] + name, result)#save warped image
+                cv2.imwrite(self.settings['dewarped directory'] + name + '.jpg', result)#save warped image
+
+        def degtorad(self, angle):
+                return angle/180 * math.pi
                 
                         
                 
