@@ -6,9 +6,10 @@ Generated from: ardupilotmega.xml,common.xml
 Note: this file has been auto-generated. DO NOT EDIT
 '''
 
-import struct, array, time, json
-from generator.mavcrc import x25crc
-
+import struct, array, time, json,sys
+sys.path.append('/root/Desktop/UAV/mavlink-generator/ardupilot-sdk-python/pymavlink/generator')
+#from generator.mavcrc import x25crc
+from mavcrc import x25crc
 WIRE_PROTOCOL_VERSION = "1.0"
 
 

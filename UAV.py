@@ -1,20 +1,22 @@
+
 #UAV Camera System Code
 #Created 22/8/2014
 #Gregory Brooks
 from __future__ import division
-import apm, serial, time, photos, thread
+import apm, serial, time, photos, thread, subprocess
 
 def process():
     global fifo
     global stop
     while 1:
-                t = time.time()
+                
                 if not fifo:
                     
                     if stop == 1:
                             break
                     else:
                         continue
+                t = time.time()
                 loc = fifo.pop(0)
                 att = fifo.pop(0)
                 alt = fifo.pop(0)
@@ -26,9 +28,9 @@ def process():
                 if Vectors == [[0,0,0],[0,0,0],[0,0,0],[0,0,0]]:
                         return
                 cam.Perspective(name, Vectors)
-                #cam.ndvi(name)
-                x = time.time() - t
-                print "Time taken: ",x
+#                cam.ndvi(name)
+                #x = time.time() - t
+                #print "Time taken: ", x
     stop = 2
 
 
@@ -48,10 +50,11 @@ prev_time = time.time()
 fifo = []
 stop = 0
 thread.start_new_thread(process,())
-for x in range (0,10):
+for x in range (0,300):
         
-        while time.time() - prev_time < 2:
-            #take photo every 2 seconds
+        while time.time() - prev_time < 2.5:
+            #take photo every 2.5 seconds
+            time.sleep(1)#speeds up consumer thread
             pass
         prev_time = time.time()
         loc, att, alt, bear, name = cam.take()
@@ -71,9 +74,11 @@ for x in range (0,10):
         #end of testing
 stop = 1        
 while stop !=2:
+    time.sleep(7)
     pass
-
-
-        
-
+#too slow to do NDVI on raspi
+#start = time.time()
+#cmd = "python /root/Desktop/UAV/infrapix-mov/processNGB.py /root/dewarped/ /root/ndvi/ .1 .8 0"           
+#subprocess.call(cmd, shell=True)
+#print "NDVI time: ", time.time() - start
 

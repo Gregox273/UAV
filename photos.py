@@ -2,9 +2,10 @@
 #Created 30/08/2014
 #Gregory Brooks
 from __future__ import division
-import subprocess, apm, thread, math, cv2
+import subprocess, apm, thread, math, cv2, time
 import numpy as np
 from decimal import *
+from jpegtran import JPEGImage
 
 
 
@@ -16,7 +17,7 @@ class camera:
         def __init__(self,ap):
                 self.ap = ap
                 #print "ap imported"
-                quality = "20 " #0 to 100, not linear!      
+                quality = "10 " #0 to 100, not linear!      
                 namemodes = {'location' : 0, 'localtime' : 1, 'gpstime' : 2}
                 ndvi = {'overwrite' : 0, 'copy' : 1, 'off' : 2}
                 self.exif = {'on/off' : True, 'location' : True, 'time' : False, 'GPS time': False, 'satellite count' : False, 'GPS speed' : False}  
@@ -60,6 +61,11 @@ class camera:
                 command = command + "-o " + self.settings['photo directory'] + name + ".jpg"                             
                 #"calling:" +  command
                 subprocess.call(command,shell=True)
+                #subprocess.call("convert " + self.settings['photo directory'] + name + ".jpg " + "-resize 1200x900 " + self.settings['photo directory'] + name + ".jpg", shell = True)
+                #j = time.time()
+                pic = JPEGImage(self.settings['photo directory'] + name + ".jpg")
+                pic.downscale(1200,900).save(self.settings['photo directory'] + name + ".jpg")
+                #print "resize time: ", time.time() - j
                 return (loc, att,alt, bear, name) 
                         
          
@@ -177,10 +183,9 @@ class camera:
                         #opencv coordinate system (top left corner is (0,0), x axis right is positive, y axis down is positive
                         corners[n][0] = maxy - corners[n][0]
                 
-                
-                raw = cv2.imread(self.settings['photo directory'] + name + '.jpg')
-                
-                img = cv2.resize(raw, (1200, 900))
+                #g = time.time()
+                img = cv2.imread(self.settings['photo directory'] + name + '.jpg')
+                #print "read time: ", time.time()-g
                 
                 dimensions = (900,1200)
                 if (maxy - miny)/(maxx-minx) > dimensions[0]/dimensions[1]:
@@ -195,11 +200,14 @@ class camera:
                         corners[n][1] = math.trunc(corners[n][1] * m)
                 src = np.array([[0,0],[dimensions[1],0],[0,dimensions[0]],[dimensions[1],dimensions[0]]],np.float32)
                 dst = np.array([[corners[0][1],corners[0][0]],[corners[1][1],corners[1][0]],[corners[2][1],corners[2][0]],[corners[3][1],corners[3][0]]],np.float32)
-                
+                #j = time.time()
                 matrix = cv2.getPerspectiveTransform(src,dst)
                 result = cv2.warpPerspective(img,matrix,(dimensions[1],dimensions[0]))
-                
+                #print "warp time: ", time.time() - j
+                #h = time.time()
                 cv2.imwrite(self.settings['dewarped directory'] + "dwrp_" + name + '.jpg', result)#save warped image
+                #print "write time: ", time.time() - h
+		#subprocess.call("rm /root/temp/*",shell=True)
                 
         def degtorad(self, angle):
                 return angle/180 * math.pi
@@ -210,3 +218,5 @@ class camera:
                 
                         
                 
+
+		
